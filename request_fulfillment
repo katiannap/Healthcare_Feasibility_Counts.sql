@@ -1,0 +1,154 @@
+--Number of patients with proliferative diabetic retinopathy (PDR):
+
+DROP TABLE IF EXISTS aao_grants.sun_test1;
+
+CREATE TABLE aao_grants.sun_test1 AS 
+	
+		SELECT
+			patient_guid,
+			min(diag_date) AS min_diag_date
+		FROM (
+			SELECT
+				p.patient_guid,
+				LEAST(p.problem_onset_date, p.documentation_date) AS diag_date
+			FROM
+				madrid2.patient_problem p
+			WHERE (p.problem_code ILIKE '362.02%'
+				OR p.problem_code ILIKE 'E10.35%'
+				OR p.problem_code ILIKE 'E11.35%'))
+	GROUP BY
+		patient_guid
+	HAVING
+		min_diag_date BETWEEN '2013-01-01' AND '2019-12-31'
+		;
+
+--1,194,495 (as a whole)
+--1,001,675 with date restriction
+
+
+/*
+SELECT
+	count(*)
+FROM ( SELECT
+	p.patient_guid,
+	LEAST(p.problem_onset_date, p.documentation_date) AS diag_date
+FROM
+	madrid2.patient_problem p
+WHERE (p.problem_code ILIKE '362.02%'
+	OR p.problem_code ILIKE 'E10.35%'
+	OR p.problem_code ILIKE 'E11.35%')
+	and diag_date BETWEEN '2013-01-01' and '2019-12-31');*/
+
+--18,120,230 (2nd half)
+--16,288,248 with date restriction
+
+
+
+
+
+
+/*How many PDR patients received only anti-VEGF injections from 2013-2019? From
+2016-2019?*/
+
+-- step 2, inner join the step 1 cohort to the vegf table, 
+-- you don’t need to use any procedure codes for this
+-- Do the date restriction on the anti-vegf table during the join, 
+
+--a) from 2013-2019?
+
+DROP TABLE IF EXISTS aao_grants.sun_test2a;
+
+CREATE TABLE aao_grants.sun_test2a AS 
+SELECT a.patient_guid
+from aao_grants.sun_test1 a
+INNER JOIN aao_team.vegf_madrid2_v1 b 
+on a.patient_guid = b.patient_guid
+where b.procedure_date BETWEEN '2013-01-01' and '2019-12-31'
+;
+
+--Obtain count for step 2a
+
+SELECT count (DISTINCT a.patient_guid)
+from aao_grants.sun_test2a a;
+
+--386,656 patients
+
+
+--b) from 2013-2016?
+
+DROP TABLE IF EXISTS aao_grants.sun_test2b;
+
+CREATE TABLE aao_grants.sun_test2b AS
+SELECT a.patient_guid
+from aao_grants.sun_test1 a
+INNER JOIN aao_team.vegf_madrid2_v1 b 
+on a.patient_guid = b.patient_guid
+where b.procedure_date BETWEEN '2013-01-01' and '2016-12-31'
+;
+
+--Obtain count for step 2b
+
+SELECT count (DISTINCT a.patient_guid)
+from aao_grants.sun_test2b a;
+
+--185,620 patients
+
+/*
+How many PDR patients received only panretinal photocoagulation (PRP) from
+2013-2019? From 2013-2016?*/
+
+-- step 3, query the 67228 or whatever it is code from patient_procedure
+-- restricted to patients in step 1 and the date range
+--then inner join to step 1 cohort 
+
+--3a) from 2013-2019?
+
+
+DROP TABLE IF EXISTS aao_grants.sun_test3a;
+
+CREATE TABLE aao_grants.sun_test3a AS
+SELECT
+	b.patient_guid
+FROM
+	madrid2.patient_procedure a
+	INNER JOIN aao_grants.sun_test1 b 
+	ON a.patient_guid = b.patient_guid
+WHERE
+	a.procedure_date BETWEEN '2013-01-01'
+	AND '2019-12-31'
+	and(
+		a.procedure_code ILIKE '67228%');
+
+-- Obtain count for step 3a
+
+SELECT count (DISTINCT a.patient_guid)
+from aao_grants.sun_test3a a;
+
+
+--313,016 patients
+
+
+--3b) From 2016-2019?
+
+
+DROP TABLE IF EXISTS aao_grants.sun_feasibility_procedure2;
+
+CREATE TABLE aao_grants.sun_feasibility_universe_procedure2 AS
+SELECT
+	b.patient_guid
+FROM
+	madrid2.patient_procedure a
+	INNER JOIN aao_grants.sun_test1 b 
+	ON a.patient_guid = b.patient_guid
+WHERE
+	a.procedure_date BETWEEN '2016-01-01'
+	AND '2019-12-31'
+	AND(
+		a.procedure_code ILIKE '67228%');
+
+--Obtain count for step 3b
+
+SELECT count (DISTINCT a.patient_guid)
+from aao_grants.sun_feasibility_universe_procedure2 a;
+
+--229,984 patients
